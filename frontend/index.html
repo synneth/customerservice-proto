@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mote &amp; Mer – Kundeservice</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f7f5f2;
+      --surface: #ffffff;
+      --primary: #1a1a1a;
+      --accent: #c8a97e;
+      --accent-dark: #a8895e;
+      --muted: #888;
+      --border: #e5e0d8;
+      --danger: #c0392b;
+      --green: #27ae60;
+      --radius: 12px;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      color: var(--primary);
+    }
+
+    .card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      width: 100%;
+      max-width: 480px;
+      padding: 36px 32px 32px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+    }
+
+    .logo {
+      font-size: 1.1rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent-dark);
+      margin-bottom: 4px;
+    }
+
+    .subtitle {
+      font-size: 0.8rem;
+      color: var(--muted);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      margin-bottom: 32px;
+    }
+
+    /* Status indicator */
+    .status-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 28px;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--muted);
+      transition: background 0.3s;
+      flex-shrink: 0;
+    }
+    .dot.active   { background: var(--green); box-shadow: 0 0 0 3px rgba(39,174,96,0.2); }
+    .dot.speaking { background: var(--accent); box-shadow: 0 0 0 3px rgba(200,169,126,0.3); animation: pulse 1s infinite; }
+    .dot.error    { background: var(--danger); }
+    .dot.escalated { background: var(--danger); box-shadow: 0 0 0 3px rgba(192,57,43,0.2); }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50%       { transform: scale(1.25); }
+    }
+
+    #status-text {
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+
+    /* Call button */
+    .call-btn {
+      width: 100%;
+      padding: 16px;
+      border-radius: var(--radius);
+      border: none;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+      letter-spacing: 0.03em;
+    }
+    .call-btn:active { transform: scale(0.98); }
+
+    .call-btn.start {
+      background: var(--accent);
+      color: #fff;
+    }
+    .call-btn.start:hover { background: var(--accent-dark); }
+
+    .call-btn.end {
+      background: #fdf0ee;
+      color: var(--danger);
+      border: 1.5px solid #f5c6c2;
+    }
+    .call-btn.end:hover { background: #fbe4e0; }
+
+    .call-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Transcript */
+    .transcript-label {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-top: 28px;
+      margin-bottom: 10px;
+    }
+
+    #transcript {
+      height: 220px;
+      overflow-y: auto;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 0.875rem;
+      line-height: 1.6;
+      background: var(--bg);
+    }
+
+    .msg { margin-bottom: 8px; }
+    .msg .who {
+      font-weight: 600;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-right: 6px;
+    }
+    .msg.agent .who  { color: var(--accent-dark); }
+    .msg.user .who   { color: var(--primary); }
+    .msg.system .who { color: var(--muted); }
+    .msg.system      { font-style: italic; color: var(--muted); font-size: 0.82rem; }
+
+    /* Escalation banner */
+    #escalation-banner {
+      display: none;
+      margin-top: 20px;
+      padding: 14px 16px;
+      border-radius: 8px;
+      background: #fdf0ee;
+      border: 1.5px solid #f5c6c2;
+      font-size: 0.875rem;
+      color: var(--danger);
+    }
+    #escalation-banner strong { display: block; margin-bottom: 4px; }
+
+    /* Volume visualizer */
+    .visualizer {
+      display: flex;
+      align-items: flex-end;
+      gap: 3px;
+      height: 28px;
+      margin-top: 16px;
+      justify-content: center;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .visualizer.visible { opacity: 1; }
+    .bar {
+      width: 4px;
+      background: var(--accent);
+      border-radius: 2px;
+      transition: height 0.1s;
+      min-height: 3px;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">Mote &amp; Mer</div>
+    <div class="subtitle">Kundeservice — Demo</div>
+
+    <div class="status-row">
+      <div class="dot" id="status-dot"></div>
+      <span id="status-text">Klar til å starte samtale</span>
+    </div>
+
+    <button class="call-btn start" id="call-btn" onclick="toggleCall()">
+      Ring kundeservice
+    </button>
+
+    <div class="visualizer" id="visualizer">
+      <div class="bar" id="b1"></div>
+      <div class="bar" id="b2"></div>
+      <div class="bar" id="b3"></div>
+      <div class="bar" id="b4"></div>
+      <div class="bar" id="b5"></div>
+    </div>
+
+    <div id="escalation-banner">
+      <strong>Overføres til kundebehandler</strong>
+      <span id="escalation-reason"></span>
+    </div>
+
+    <div class="transcript-label">Samtalelogg</div>
+    <div id="transcript"><div class="msg system"><span class="who">System</span>Start en samtale for å se transkripsjonen her.</div></div>
+  </div>
+
+  <script type="module">
+    import { Conversation } from 'https://cdn.jsdelivr.net/npm/@11labs/client@latest/+esm';
+
+    let conversation = null;
+    let vizInterval = null;
+
+    const btn       = document.getElementById('call-btn');
+    const dot       = document.getElementById('status-dot');
+    const statusTxt = document.getElementById('status-text');
+    const transcript = document.getElementById('transcript');
+    const banner    = document.getElementById('escalation-banner');
+    const bannerReason = document.getElementById('escalation-reason');
+    const visualizer = document.getElementById('visualizer');
+
+    function setStatus(state, text) {
+      dot.className = 'dot ' + state;
+      statusTxt.textContent = text;
+    }
+
+    function appendMessage(role, text) {
+      const div = document.createElement('div');
+      div.className = `msg ${role}`;
+      const labels = { agent: 'Assistent', user: 'Deg', system: 'System' };
+      div.innerHTML = `<span class="who">${labels[role] ?? role}</span>${text}`;
+      transcript.appendChild(div);
+      transcript.scrollTop = transcript.scrollHeight;
+    }
+
+    function startViz() {
+      visualizer.classList.add('visible');
+      const bars = [b1, b2, b3, b4, b5];
+      vizInterval = setInterval(() => {
+        bars.forEach(b => {
+          b.style.height = (4 + Math.random() * 20) + 'px';
+        });
+      }, 120);
+    }
+
+    function stopViz() {
+      visualizer.classList.remove('visible');
+      clearInterval(vizInterval);
+    }
+
+    async function getSignedUrl() {
+      const resp = await fetch('/api/conversation-token');
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ detail: resp.statusText }));
+        throw new Error(err.detail || 'Kunne ikke hente samtale-token');
+      }
+      const data = await resp.json();
+      return data.signed_url;
+    }
+
+    window.toggleCall = async function() {
+      if (conversation) {
+        await endCall();
+      } else {
+        await startCall();
+      }
+    };
+
+    async function startCall() {
+      btn.disabled = true;
+      setStatus('', 'Kobler til...');
+
+      try {
+        await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch {
+        setStatus('error', 'Mikrofonilgang nektet');
+        btn.disabled = false;
+        return;
+      }
+
+      let signedUrl;
+      try {
+        signedUrl = await getSignedUrl();
+      } catch (e) {
+        setStatus('error', e.message);
+        btn.disabled = false;
+        return;
+      }
+
+      conversation = await Conversation.startSession({
+        signedUrl,
+
+        onConnect() {
+          setStatus('active', 'Tilkoblet – snakk nå');
+          btn.className = 'call-btn end';
+          btn.textContent = 'Avslutt samtale';
+          btn.disabled = false;
+          appendMessage('system', 'Samtale startet.');
+          startViz();
+        },
+
+        onDisconnect() {
+          setStatus('', 'Samtale avsluttet');
+          btn.className = 'call-btn start';
+          btn.textContent = 'Ring kundeservice';
+          btn.disabled = false;
+          conversation = null;
+          stopViz();
+          appendMessage('system', 'Samtale avsluttet.');
+        },
+
+        onError(err) {
+          console.error(err);
+          setStatus('error', 'Feil: ' + (err.message ?? err));
+          btn.disabled = false;
+          stopViz();
+        },
+
+        onMessage({ message, source }) {
+          if (message) {
+            appendMessage(source === 'ai' ? 'agent' : 'user', message);
+          }
+        },
+
+        onModeChange({ mode }) {
+          if (mode === 'speaking') {
+            setStatus('speaking', 'Assistenten snakker...');
+          } else {
+            setStatus('active', 'Lytter...');
+          }
+        },
+
+        clientTools: {
+          escalate_to_human({ reason }) {
+            setStatus('escalated', 'Overføres til menneskelig agent');
+            banner.style.display = 'block';
+            bannerReason.textContent = reason ?? '';
+            appendMessage('system', `Eskalert: ${reason}`);
+            return { handling: 'ESKALERT', melding: 'Kunden overføres.' };
+          },
+        },
+      });
+    }
+
+    async function endCall() {
+      if (conversation) {
+        await conversation.endSession();
+      }
+    }
+  </script>
+</body>
+</html>
