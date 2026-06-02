@@ -78,7 +78,7 @@ async def setup_agent() -> JSONResponse:
     tools_with_url = []
     for tool in TOOLS:
         t = json.loads(json.dumps(tool))
-        t["api"]["url"] = t["api"]["url"].replace("{BACKEND_URL}", BACKEND_URL)
+        t["api_schema"]["url"] = t["api_schema"]["url"].replace("{BACKEND_URL}", BACKEND_URL)
         tools_with_url.append(t)
 
     payload = {
