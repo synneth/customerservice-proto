@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 import os
-import json
 import httpx
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,7 +16,10 @@ load_dotenv()
 
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "")
 AGENT_ID = os.getenv("ELEVENLABS_AGENT_ID", "")
-BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
+# NB: ingen BACKEND_URL lenger. Alle verktøy i agent_config.py er "client"-tools
+# som kjøres av nettleseren over den eksisterende WebSocket-forbindelsen, så
+# ElevenLabs trenger aldri å nå denne backend-en fra internett. Det betyr at
+# du IKKE trenger ngrok (eller noen annen tunnel) for å kjøre demoen lokalt.
 
 app = FastAPI(title="Mote & Mer Kundeservice API")
 
@@ -30,7 +32,9 @@ app.add_middleware(
 
 
 # ---------------------------------------------------------------------------
-# Tool webhook endpoints — called by ElevenLabs agent
+# Tool endpoints — called by the browser's clientTools proxy (frontend/index.html),
+# which forwards each ElevenLabs client-tool call here over localhost and returns
+# the JSON result to the agent. Never called directly by ElevenLabs itself.
 # ---------------------------------------------------------------------------
 
 @app.post("/tools/{tool_name}")
@@ -75,12 +79,6 @@ async def setup_agent() -> JSONResponse:
     if not ELEVENLABS_API_KEY:
         raise HTTPException(status_code=500, detail="ELEVENLABS_API_KEY ikke konfigurert.")
 
-    tools_with_url = []
-    for tool in TOOLS:
-        t = json.loads(json.dumps(tool))
-        t["api_schema"]["url"] = t["api_schema"]["url"].replace("{BACKEND_URL}", BACKEND_URL)
-        tools_with_url.append(t)
-
     payload = {
         "name": "Mote & Mer Kundeservice",
         "conversation_config": {
@@ -88,7 +86,7 @@ async def setup_agent() -> JSONResponse:
                 "prompt": {
                     "prompt": SYSTEM_PROMPT,
                     "llm": "claude-sonnet-4-6",
-                    "tools": tools_with_url,
+                    "tools": TOOLS,
                 },
                 "first_message": (
                     "Hei, du har ringt til Mote & Mer sin kundeservice. "

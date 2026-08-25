@@ -4,6 +4,33 @@ En stemmebasert AI-kundeservice prototype for klesbutikk, bygget med [ElevenLabs
 
 ---
 
+## Kjapp start (4 steg, ingen forkunnskaper nødvendig)
+
+Åpne PowerShell i prosjektmappen og kjør disse fire tingene, i rekkefølge:
+
+```powershell
+# 1. Installer det Python-koden trenger
+pip install -r requirements.txt
+
+# 2. Lag din egen .env-fil (mal finnes i .env.example)
+Copy-Item .env.example .env
+# ...åpne .env i notepad og lim inn din ElevenLabs API-nøkkel
+
+# 3. Start alt sammen automatisk
+.\start-demo.ps1
+
+# 4. Åpne nettleseren
+start http://localhost:8000
+```
+
+Trykk **Ring kundeservice**, gi mikrofontilgang, og snakk med assistenten.
+
+Resten av denne filen er teknisk referanse — hva hver del av koden gjør, hvordan
+verktøyene henger sammen, og manuelle steg hvis skriptet over ikke skulle virke.
+Du trenger den ikke for å bare teste demoen.
+
+---
+
 ## Funksjonalitet
 
 | Scenario | Beskrivelse |
@@ -22,12 +49,15 @@ En stemmebasert AI-kundeservice prototype for klesbutikk, bygget med [ElevenLabs
 
 ```
 Kunde (nettleser)
-      │  WebSocket (ElevenLabs JS SDK)
+      │  WebSocket (ElevenLabs JS SDK) — samme forbindelse begge veier
       ▼
 ElevenLabs Conversational AI  ──► Claude (LLM)
-      │  Webhook-kall (POST)
+      │  client-tool-kall (over WebSocket, tilbake til nettleseren)
       ▼
-FastAPI backend (Python)
+Nettleseren (frontend/index.html)
+      │  fetch() til egen backend på localhost
+      ▼
+FastAPI backend (Python, kun lokalt)
       │
       ├─ /tools/check_order
       ├─ /tools/lookup_membership
@@ -45,8 +75,12 @@ FastAPI backend (Python)
 2. Frontend henter et signert samtale-token fra backend
 3. ElevenLabs kobler opp en sanntids stemmesamtale
 4. Agenten (Claude via ElevenLabs) lytter, forstår og svarer på norsk
-5. Ved behov kaller agenten webhook-er i backend for å hente data
+5. Ved behov kaller agenten et **client-tool** over den samme WebSocket-forbindelsen; nettleseren tar imot kallet og slår opp data hos egen backend på `localhost` — ingen offentlig URL eller tunnel (f.eks. ngrok) trengs
 6. Ved edge cases trigges `escalate_to_human` og kunden overføres
+
+> **Merk:** Fordi alle verktøy er client-tools, virker dette kun så lenge samtalen går via nettleseren.
+> Kobles dette senere til ekte telefoni (Twilio e.l., uten nettleser), må verktøyene tilbake til
+> `"webhook"`-type med en permanent, offentlig backend-URL — se "Veien videre".
 
 ---
 
@@ -57,7 +91,7 @@ kundeservice-proto/
 ├── backend/
 │   ├── main.py          # FastAPI-server: API-endepunkter, agent-oppsett, token
 │   ├── tools.py         # Logikk for alle verktøy-kall fra ElevenLabs
-│   ├── agent_config.py  # Norsk systemprompt + verktøy-definisjoner (api_schema)
+│   ├── agent_config.py  # Norsk systemprompt + verktøy-definisjoner (client-tools)
 │   └── mock_data.py     # Testdata: ordre, medlemskap, størrelsesguide, butikkinfo
 ├── frontend/
 │   └── index.html       # Web-UI med mikrofon-knapp, samtalelogg og eskaleringsvisning
@@ -68,13 +102,18 @@ kundeservice-proto/
 
 ---
 
-## Kom i gang
+## Manuelt oppsett (valgfritt)
+
+**Du trenger ikke lese dette for å kjøre demoen** — det er allerede dekket av
+"Kjapp start" helt øverst i denne filen. Denne seksjonen forklarer de samme
+fire stegene i detalj, ett og ett, med rene kommandoer i stedet for
+`start-demo.ps1`. Bruk den kun hvis du vil forstå hva skriptet faktisk gjør,
+eller hvis skriptet av en eller annen grunn ikke fungerer hos deg.
 
 ### Forutsetninger
 
 - Python 3.11+
 - En [ElevenLabs](https://elevenlabs.io)-konto med API-nøkkel
-- [ngrok](https://ngrok.com/) for lokal testing av webhooks
 
 ### 1. Installer avhengigheter
 
@@ -93,27 +132,16 @@ Rediger `.env`:
 ```env
 ELEVENLABS_API_KEY=din_api_nøkkel_her
 ELEVENLABS_AGENT_ID=          # Fylles inn etter steg 4
-BACKEND_URL=http://localhost:8000   # Byttes med ngrok-URL for webhooks
 ```
 
-### 3. Eksponer backend med ngrok (nødvendig for webhooks)
-
-ElevenLabs sin sky-agent må kunne nå backend-en din for å kalle verktøyene. Lokalt gjøres dette med ngrok:
-
-```bash
-ngrok http 8000
-```
-
-Kopier HTTPS-URL-en (f.eks. `https://abc123.ngrok-free.app`) og sett den som `BACKEND_URL` i `.env`.
-
-### 4. Start backend
+### 3. Start backend
 
 ```bash
 cd backend
 uvicorn main:app --reload
 ```
 
-### 5. Opprett ElevenLabs-agenten
+### 4. Opprett ElevenLabs-agenten
 
 ```bash
 # PowerShell
@@ -127,7 +155,7 @@ Svaret inneholder `agent_id` — legg den inn i `.env` som `ELEVENLABS_AGENT_ID=
 
 > Kjør dette på nytt etter enhver endring i `agent_config.py` for å oppdatere agenten.
 
-### 6. Test i nettleseren
+### 5. Test i nettleseren
 
 Åpne `http://localhost:8000`, klikk **Ring kundeservice** og gi mikrofonilgang.
 
@@ -176,7 +204,11 @@ I prototypen vises dette som et rødt banner i UI-et. I produksjon kobles dette 
 ## Veien videre
 
 - [ ] Koble til ekte ordre- og medlemskapsdatabase
-- [ ] Integrere med telefoni via Twilio for ekte innkommende anrop
-- [ ] Legg til autentisering av webhook-kall fra ElevenLabs
+- [ ] Integrere med telefoni via Twilio for ekte innkommende anrop — merk: da må
+      verktøyene i `agent_config.py` gjøres om tilbake fra `"client"` til
+      `"webhook"` (siden det ikke finnes noen nettleser i en ekte telefonsamtale),
+      og backend må ha en permanent, offentlig URL i stedet for kun `localhost`
+- [ ] Legg til autentisering av webhook-kall fra ElevenLabs (relevant igjen den
+      dagen verktøyene er webhook-basert)
 - [ ] Bytt mock-stemme med en tilpasset norsk stemme i ElevenLabs
 - [ ] Logging og analyse av samtaler

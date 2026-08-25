@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title> Lindux - Kundeservice</title>
+  <title>Mote &amp; Mer - Kundeservice</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -274,6 +274,51 @@
       return data.signed_url;
     }
 
+    // Alle datasporsmal-verktoyene (butikkinfo, ordrestatus, medlemskap osv.)
+    // er registrert som "client"-tools i backend/agent_config.py. ElevenLabs
+    // kaller dem over den WebSocket-forbindelsen som allerede er apen for
+    // samtalen, sa denne funksjonen svarer ved a sla opp i egen backend pa
+    // localhost - ingen offentlig URL (ngrok e.l.) trengs for dette.
+    const PROXIED_TOOLS = [
+      'get_store_info',
+      'get_return_policy',
+      'get_complaint_policy',
+      'check_order',
+      'get_size_recommendation',
+      'lookup_membership',
+      'update_membership_email',
+      'merge_duplicate_memberships',
+    ];
+
+    async function callBackendTool(name, params) {
+      try {
+        const resp = await fetch(`/tools/${name}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(params ?? {}),
+        });
+        if (!resp.ok) {
+          return { feil: true, melding: `Verktoyet ${name} svarte med feil ${resp.status}.` };
+        }
+        return await resp.json();
+      } catch (e) {
+        return { feil: true, melding: `Fikk ikke kontakt med backend for verktoyet ${name}.` };
+      }
+    }
+
+    const clientTools = {
+      escalate_to_human({ reason }) {
+        setStatus('escalated', 'Overføres til menneskelig agent');
+        banner.style.display = 'block';
+        bannerReason.textContent = reason ?? '';
+        appendMessage('system', `Eskalert: ${reason}`);
+        return { handling: 'ESKALERT', melding: 'Kunden overføres.' };
+      },
+    };
+    for (const name of PROXIED_TOOLS) {
+      clientTools[name] = (params) => callBackendTool(name, params);
+    }
+
     window.toggleCall = async function() {
       if (conversation) {
         await endCall();
@@ -346,15 +391,7 @@
           }
         },
 
-        clientTools: {
-          escalate_to_human({ reason }) {
-            setStatus('escalated', 'Overføres til menneskelig agent');
-            banner.style.display = 'block';
-            bannerReason.textContent = reason ?? '';
-            appendMessage('system', `Eskalert: ${reason}`);
-            return { handling: 'ESKALERT', melding: 'Kunden overføres.' };
-          },
-        },
+        clientTools,
       });
     }
 

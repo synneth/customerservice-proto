@@ -35,141 +35,130 @@ Vær som en dyktig, rolig og løsningsorientert butikkansatt. Ikke vær overdrev
 Hold svarene konsise – kunden ringer, de vil ha raskt svar.
 """
 
+# Alle verktøy under er "client"-tools: de kjøres av frontend/index.html over
+# WebSocket-forbindelsen som uansett er åpen for stemmesamtalen, og trenger
+# derfor IKKE at backend er nåbar fra internett. Det er grunnen til at
+# ngrok ikke lenger trengs for å kjøre demoen lokalt.
+#
+# Frontend sin generiske proxy-handler kaller backend sin egen /tools/<navn>
+# på localhost (samme maskin, samme nettleser — ingen tunnel nødvendig) og
+# sender svaret tilbake til agenten.
+#
+# NB: dette fungerer fordi demoen kjører i nettleseren. Hvis dette senere
+# kobles til ekte telefoni (Twilio e.l. uten nettleser), må disse tilbake
+# til "webhook"-type med en permanent, offentlig backend-URL — se README.
+
 TOOLS = [
     {
-        "type": "webhook",
+        "type": "client",
         "name": "get_store_info",
         "description": "Henter butikkens adresse, telefon og åpningstider.",
-        "api_schema": {
-            "url": "{BACKEND_URL}/tools/get_store_info",
-            "method": "POST",
-            "request_body_schema": {"type": "object", "properties": {}, "required": []},
-        },
+        "expects_response": True,
+        "parameters": {"type": "object", "properties": {}, "required": []},
     },
     {
-        "type": "webhook",
+        "type": "client",
         "name": "get_return_policy",
         "description": "Henter informasjon om butikkens retur- og bytteregler.",
-        "api_schema": {
-            "url": "{BACKEND_URL}/tools/get_return_policy",
-            "method": "POST",
-            "request_body_schema": {"type": "object", "properties": {}, "required": []},
-        },
+        "expects_response": True,
+        "parameters": {"type": "object", "properties": {}, "required": []},
     },
     {
-        "type": "webhook",
+        "type": "client",
         "name": "get_complaint_policy",
         "description": "Henter reklamasjonsreglene (forbrukerkjøpsloven, 2-årsrett osv.).",
-        "api_schema": {
-            "url": "{BACKEND_URL}/tools/get_complaint_policy",
-            "method": "POST",
-            "request_body_schema": {"type": "object", "properties": {}, "required": []},
-        },
+        "expects_response": True,
+        "parameters": {"type": "object", "properties": {}, "required": []},
     },
     {
-        "type": "webhook",
+        "type": "client",
         "name": "check_order",
         "description": "Slår opp status på en kundeordre basert på ordre-ID.",
-        "api_schema": {
-            "url": "{BACKEND_URL}/tools/check_order",
-            "method": "POST",
-            "request_body_schema": {
-                "type": "object",
-                "properties": {
-                    "order_id": {"type": "string", "description": "Ordre-ID, f.eks. ORD-1001"}
-                },
-                "required": ["order_id"],
+        "expects_response": True,
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "order_id": {"type": "string", "description": "Ordre-ID, f.eks. ORD-1001"}
             },
+            "required": ["order_id"],
         },
     },
     {
-        "type": "webhook",
+        "type": "client",
         "name": "get_size_recommendation",
         "description": "Anbefaler riktig klesstr. basert på kroppsmål kunden har tatt.",
-        "api_schema": {
-            "url": "{BACKEND_URL}/tools/get_size_recommendation",
-            "method": "POST",
-            "request_body_schema": {
-                "type": "object",
-                "properties": {
-                    "category": {
-                        "type": "string",
-                        "description": "Kategori: dame_overdel, dame_bukse, herre_overdel, herre_bukse",
-                        "enum": ["dame_overdel", "dame_bukse", "herre_overdel", "herre_bukse"],
-                    },
-                    "measurements": {
-                        "type": "object",
-                        "description": "Mål i cm, f.eks. {\"bryst_cm\": 90, \"midje_cm\": 72}",
-                    },
+        "expects_response": True,
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string",
+                    "description": "Kategori: dame_overdel, dame_bukse, herre_overdel, herre_bukse",
+                    "enum": ["dame_overdel", "dame_bukse", "herre_overdel", "herre_bukse"],
                 },
-                "required": ["category", "measurements"],
+                "measurements": {
+                    "type": "object",
+                    "description": "Mål i cm, f.eks. {\"bryst_cm\": 90, \"midje_cm\": 72}",
+                },
             },
+            "required": ["category", "measurements"],
         },
     },
     {
-        "type": "webhook",
+        "type": "client",
         "name": "lookup_membership",
         "description": "Slår opp kundens medlemskap basert på e-post eller telefonnummer.",
-        "api_schema": {
-            "url": "{BACKEND_URL}/tools/lookup_membership",
-            "method": "POST",
-            "request_body_schema": {
-                "type": "object",
-                "properties": {
-                    "identifier": {"type": "string", "description": "E-post eller telefonnummer"}
-                },
-                "required": ["identifier"],
+        "expects_response": True,
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "identifier": {"type": "string", "description": "E-post eller telefonnummer"}
             },
+            "required": ["identifier"],
         },
     },
     {
-        "type": "webhook",
+        "type": "client",
         "name": "update_membership_email",
         "description": "Oppdaterer e-postadressen knyttet til et medlemskap.",
-        "api_schema": {
-            "url": "{BACKEND_URL}/tools/update_membership_email",
-            "method": "POST",
-            "request_body_schema": {
-                "type": "object",
-                "properties": {
-                    "membership_id": {"type": "string", "description": "Medlemskaps-ID, f.eks. MED-2001"},
-                    "new_email": {"type": "string", "description": "Ny e-postadresse"},
-                },
-                "required": ["membership_id", "new_email"],
+        "expects_response": True,
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "membership_id": {"type": "string", "description": "Medlemskaps-ID, f.eks. MED-2001"},
+                "new_email": {"type": "string", "description": "Ny e-postadresse"},
             },
+            "required": ["membership_id", "new_email"],
         },
     },
     {
-        "type": "webhook",
+        "type": "client",
         "name": "merge_duplicate_memberships",
         "description": "Sletter et duplikat-medlemskap og overfører poeng til det primære.",
-        "api_schema": {
-            "url": "{BACKEND_URL}/tools/merge_duplicate_memberships",
-            "method": "POST",
-            "request_body_schema": {
-                "type": "object",
-                "properties": {
-                    "keep_id": {"type": "string", "description": "Medlemskaps-ID som skal beholdes"},
-                    "delete_id": {"type": "string", "description": "Medlemskaps-ID som skal slettes"},
-                },
-                "required": ["keep_id", "delete_id"],
+        "expects_response": True,
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "keep_id": {"type": "string", "description": "Medlemskaps-ID som skal beholdes"},
+                "delete_id": {"type": "string", "description": "Medlemskaps-ID som skal slettes"},
             },
+            "required": ["keep_id", "delete_id"],
         },
     },
     {
-        "type": "webhook",
+        # Egen kommentar bevart: dette var det første verktøyet som ble gjort om
+        # til "client" fordi frontend viser et eget rødt banner for denne — se
+        # clientTools.escalate_to_human i frontend/index.html.
+        "type": "client",
         "name": "escalate_to_human",
-        "description": "Setter kunden over til en ekte kundebehandler når AI ikke kan hjelpe.",
-        "api_schema": {
-            "url": "{BACKEND_URL}/tools/escalate_to_human",
-            "method": "POST",
-            "request_body_schema": {
-                "type": "object",
-                "properties": {
-                    "reason": {"type": "string", "description": "Kort forklaring på hvorfor saken eskaleres"}
-                },
-                "required": ["reason"],
+        "description": "Setter kunden over til en ekte kundebehandler når AI ikke kan hjelpe. Viser en eskaleringsvisning i kundens nettleser.",
+        "expects_response": True,
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "reason": {"type": "string", "description": "Kort forklaring på hvorfor saken eskaleres"}
             },
+            "required": ["reason"],
         },
     },
 ]
